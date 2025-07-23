@@ -53,4 +53,4 @@ target_link_libraries(IVF_PQ_C_EXAMPLE PRIVATE cuvs::c_api $<TARGET_NAME_IF_EXIS
 
 add_executable(CAGRA_QUANTIZATION_EXAMPLE src/cagra_quantization_example.c)
 target_include_directories(CAGRA_QUANTIZATION_EXAMPLE PUBLIC "$<BUILD_INTERFACE:${DLPACK_INCLUDE_DIR}>")
-target_link_libraries(CAGRA_QUANTIZATION_EXAMPLE PRIVATE cuvs::c_api $<TARGET_NAME_IF_EXISTS:conda_env>)
+target_link_libraries(CAGRA_QUANTIZATION_EXAMPLE PRIVATE cuvs::c_api $<TARGET_NAME_IF_EXISTS:conda_env> m)
