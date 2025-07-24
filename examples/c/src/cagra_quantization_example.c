@@ -58,10 +58,14 @@ void cagra_build_search_simple() {
   cuvsResources_t res;
   cuvsResourcesCreate(&res);
 
+  float * dataset_d;
+  cuvsRMMAlloc(res, (void **)&dataset_d, sizeof(float) * n_rows * n_cols);
+  cudaMemcpy(dataset_d, queries, sizeof(float) * n_rows * n_cols, cudaMemcpyDefault);
+
   // Use DLPack to represent `dataset` as a tensor
   DLManagedTensor dataset_tensor;
-  dataset_tensor.dl_tensor.data = dataset;
-  dataset_tensor.dl_tensor.device.device_type = kDLCPU;
+  dataset_tensor.dl_tensor.data = dataset_d;
+  dataset_tensor.dl_tensor.device.device_type = kDLCUDA;
   dataset_tensor.dl_tensor.ndim = 2;
   dataset_tensor.dl_tensor.dtype.code = kDLFloat;
   dataset_tensor.dl_tensor.dtype.bits = 32;
@@ -87,7 +91,7 @@ void cagra_build_search_simple() {
   cuvsRMMAlloc(res, (void **)&distances, sizeof(float) * n_queries * topk);
 
   // Use DLPack to represent `queries`, `neighbors` and `distances` as tensors
-  cudaMemcpy(queries_d, queries, sizeof(float) * 4 * 2, cudaMemcpyDefault);
+  cudaMemcpy(queries_d, queries, sizeof(float) * n_queries * n_cols, cudaMemcpyDefault);
 
   DLManagedTensor queries_tensor;
   queries_tensor.dl_tensor.data = queries_d;
@@ -148,16 +152,6 @@ void cagra_build_search_simple() {
       printf("%f%s", distances_h[q * topk + k], (k < topk - 1) ? ", " : "]\n");
     }
   }
-
-  // Free or destroy all allocations
-  
-  free(distances_h);
-
-  cuvsCagraSearchParamsDestroy(search_params);
-
-  cuvsRMMFree(res, distances, sizeof(float) * n_queries * topk);
-  cuvsRMMFree(res, neighbors, sizeof(uint32_t) * n_queries * topk);
-  cuvsRMMFree(res, queries_d, sizeof(float) * n_queries * n_cols);
 
   // --- Quantization workflow ---
   cuvsScalarQuantizerParams_t quant_params;
@@ -250,7 +244,7 @@ void cagra_build_search_simple() {
     int overlap = 0;
     printf("Overlap indices with float32 for Query %d: [", q);
     for (int k = 0; k < topk; ++k) {
-      int idx_q = quant_neighbors_h[q * topk + k];
+      uint32_t idx_q = quant_neighbors_h[q * topk + k];
       int found = 0;
       for (int k2 = 0; k2 < topk; ++k2) {
         if (neighbors_h[q * topk + k2] == idx_q) {
@@ -266,6 +260,14 @@ void cagra_build_search_simple() {
     }
     printf("] (count: %d)\n", overlap);
   }
+
+  // Free or destroy all allocations
+  free(distances_h);
+  cuvsCagraSearchParamsDestroy(search_params);
+  cuvsRMMFree(res, distances, sizeof(float) * n_queries * topk);
+  cuvsRMMFree(res, neighbors, sizeof(uint32_t) * n_queries * topk);
+  cuvsRMMFree(res, queries_d, sizeof(float) * n_queries * n_cols);
+  cuvsRMMFree(res, dataset_d, sizeof(float) * n_rows * n_cols);
 
   free(quant_neighbors_h);
   free(quant_distances_h);
